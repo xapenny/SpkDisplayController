@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+env:
+  DOTNET_NOLOGO: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 'true'
+  CONFIGURATION: Release
+  TFMPATH: ${{ github.workspace }}/SpkDisplayController/SpkDisplayController.csproj
+
+jobs:
+  build:
+    name: Build (win-x64)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore
+        run: dotnet restore "$env:TFMPATH"
+
+      - name: Build
+        run: dotnet build "$env:TFMPATH" -c $env:CONFIGURATION --no-restore
+
+      - name: Publish single-file
+        run: >
+          dotnet publish "$env:TFMPATH"
+          -c $env:CONFIGURATION
+          -r win-x64
+          --self-contained false
+          -p:PublishSingleFile=true
+          --no-restore
+          -o dist
+
+      - name: Verify manifest requests elevation
+        shell: pwsh
+        run: |
+          $exe = 'dist/SpkDisplayController.exe'
+          if (-not (Test-Path $exe)) { throw "missing $exe" }
+          $text = [System.Text.Encoding]::UTF8.GetString([System.IO.File]::ReadAllBytes($exe))
+          if (-not $text.Contains('requireAdministrator')) {
+            throw 'embedded manifest is missing requireAdministrator'
+          }
+          "manifest ok: $([math]::Round((Get-Item $exe).Length / 1KB, 1)) KB"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SpkDisplayController-win-x64
+          path: dist/SpkDisplayController.exe
+          if-no-files-found: error
+          retention-days: 14

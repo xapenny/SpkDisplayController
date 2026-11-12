@@ -1,0 +1,38 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+
+    <AssemblyName>SpkDisplayController</AssemblyName>
+    <RootNamespace>SpkDisplayController</RootNamespace>
+    <StartupObject>SpkDisplayController.Program</StartupObject>
+
+    <ApplicationIcon>Resources\app.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+
+    <Version>1.0.0</Version>
+    <FileVersion>1.0.0.0</FileVersion>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <Company>SpkDisplayController</Company>
+    <Product>SpkDisplayController</Product>
+    <AssemblyTitle>SpkDisplayController</AssemblyTitle>
+    <Description>Per-monitor HDR, brightness and soft-off control from the system tray.</Description>
+    <Copyright>Copyright © 2026</Copyright>
+
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <SatelliteResourceLanguages>en;zh-Hans;ja;ko;ru</SatelliteResourceLanguages>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\app.ico" />
+  </ItemGroup>
+
+</Project>
