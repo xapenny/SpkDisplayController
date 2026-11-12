@@ -12,7 +12,6 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 'true'
   CONFIGURATION: Release
-  TFMPATH: ${{ github.workspace }}/SpkDisplayController/SpkDisplayController.csproj
 
 jobs:
   build:
@@ -37,14 +36,14 @@ jobs:
             ${{ runner.os }}-nuget-
 
       - name: Restore
-        run: dotnet restore "$env:TFMPATH"
+        run: dotnet restore
 
       - name: Build
-        run: dotnet build "$env:TFMPATH" -c $env:CONFIGURATION --no-restore
+        run: dotnet build -c $env:CONFIGURATION --no-restore
 
       - name: Publish single-file
         run: >
-          dotnet publish "$env:TFMPATH"
+          dotnet publish
           -c $env:CONFIGURATION
           -r win-x64
           --self-contained false
