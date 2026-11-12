@@ -48,7 +48,6 @@ jobs:
           -r win-x64
           --self-contained false
           -p:PublishSingleFile=true
-          --no-restore
           -o dist
 
       - name: Verify manifest requests elevation
