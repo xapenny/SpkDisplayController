@@ -1,22 +1,21 @@
-﻿using System.Runtime.InteropServices;
+using System.Runtime.InteropServices;
 
 namespace SpkDisplayController.Native;
 
 /// <summary>
-/// Win32 原生弹出菜单（HMENU + TrackPopupMenu）。
-/// WinForms 的 ContextMenuStrip 是 GDI 自绘控件，拿不到系统菜单的圆角、
-/// 阴影与弹出动画；本类直接构造 HMENU，由 DWM 按系统主题渲染。
+/// Win32 native popup menu (HMENU + TrackPopupMenu).
+/// WinForms ContextMenuStrip is GDI custom-drawn and lacks system menu rounded corners,
+/// shadows, and popup animations; this class builds an HMENU directly so DWM renders it
+/// using the system theme.
 /// </summary>
 internal sealed class NativeMenu : IDisposable
 {
-    // 菜单项标志
     private const uint MF_STRING = 0x00000000;
     private const uint MF_POPUP = 0x00000010;
     private const uint MF_SEPARATOR = 0x00000800;
     private const uint MF_CHECKED = 0x00000008;
     private const uint MF_GRAYED = 0x00000001;
 
-    // TrackPopupMenu 标志
     private const uint TPM_LEFTALIGN = 0x0000;
     private const uint TPM_TOPALIGN = 0x0000;
     private const uint TPM_RIGHTBUTTON = 0x0002;
@@ -55,7 +54,6 @@ internal sealed class NativeMenu : IDisposable
 
     public IntPtr Root => _root;
 
-    /// <summary>在指定菜单下追加一个叶子项。</summary>
     public void AddItem(IntPtr menu, string text, bool enabled, bool isChecked, Action? onClick)
     {
         var flags = MF_STRING;
@@ -79,7 +77,6 @@ internal sealed class NativeMenu : IDisposable
     public void AddSeparator(IntPtr menu) =>
         AppendMenu(menu, MF_SEPARATOR, IntPtr.Zero, null);
 
-    /// <summary>创建一个子菜单并挂到父菜单下，返回子菜单句柄。</summary>
     public IntPtr AddSubMenu(IntPtr parent, string text, bool enabled)
     {
         var sub = CreatePopupMenu();
@@ -87,11 +84,11 @@ internal sealed class NativeMenu : IDisposable
         return sub;
     }
 
-    /// <summary>弹出菜单，返回被选中项对应的动作是否执行。</summary>
+    /// <summary>Shows the menu and returns whether the selected item's action was executed.</summary>
     /// <remarks>
-    /// 必须先 SetForegroundWindow，否则菜单可能不会因为点击外部而收起；
-    /// 收起后再 PostMessage(WM_NULL) 是托盘图标的经典修复，
-    /// 否则菜单关闭后图标会短暂失去响应。
+    /// SetForegroundWindow must be called first, otherwise clicking outside may not dismiss the menu;
+    /// PostMessage(WM_NULL) after dismissal is the classic tray icon fix, otherwise the icon
+    /// briefly becomes unresponsive after the menu closes.
     /// </remarks>
     public bool Show(IntPtr owner, int screenX, int screenY)
     {

@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using SpkDisplayController.Localization;
 using SpkDisplayController.Models;
 using SpkDisplayController.Native;
@@ -9,7 +9,7 @@ using Microsoft.Win32;
 namespace SpkDisplayController;
 
 /// <summary>
-/// 托盘宿主：构建三分区原生菜单，管理显示器状态与生命周期。
+/// Tray host: builds the three-section native menu and manages monitor state and lifecycle.
 /// </summary>
 internal sealed class TrayAppContext : ApplicationContext
 {
@@ -39,10 +39,15 @@ internal sealed class TrayAppContext : ApplicationContext
 
         SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
 
-        _service.Refresh();
+        try
+        {
+            _service.Refresh();
+        }
+        catch
+        {
+            // Display enumeration may fail transiently during early logon.
+        }
     }
-
-    // ---------------------------------------------------------------- 图标
 
     private static Icon? LoadAppIcon()
     {
@@ -58,8 +63,6 @@ internal sealed class TrayAppContext : ApplicationContext
         }
     }
 
-    // ---------------------------------------------------------------- 托盘交互
-
     private void OnTrayMouseUp(object? sender, MouseEventArgs e)
     {
         if (e.Button is MouseButtons.Left or MouseButtons.Right)
@@ -74,15 +77,13 @@ internal sealed class TrayAppContext : ApplicationContext
         }
         catch
         {
-            // 显示器热插拔期间枚举可能失败，忽略。
+            // Enumeration can fail during monitor hot-plugging; ignore.
         }
     }
 
-    // ---------------------------------------------------------------- 菜单
-
     /// <summary>
-    /// 每次弹出前重建整棵 HMENU。原生菜单没有可复用的对象模型，
-    /// 状态必须现取现建。
+    /// Rebuilds the entire HMENU before each popup. Native menus have no reusable object model,
+    /// so state must be fetched and constructed on demand.
     /// </summary>
     private void ShowMenu()
     {
@@ -91,19 +92,23 @@ internal sealed class TrayAppContext : ApplicationContext
         using var menu = new NativeMenu();
         var root = menu.Root;
 
-        // ---- 分区 1 ----
         var autoStartChecked = AutoStart.IsEnabled;
         menu.AddItem(root, Loc.Get("StartWithWindows"), true, autoStartChecked, () =>
         {
             var next = !AutoStart.IsEnabled;
-            AutoStart.Set(next);
+            if (!AutoStart.Set(next))
+            {
+                var detail = string.IsNullOrWhiteSpace(AutoStart.LastError)
+                    ? Loc.Get("AutoStartFail")
+                    : $"{Loc.Get("AutoStartFail")}\n{AutoStart.LastError}";
+                ShowBalloon(detail, ToolTipIcon.Warning);
+            }
         });
 
         menu.AddItem(root, Loc.Get("RefreshMonitors"), true, false, () => _service.Refresh());
 
         menu.AddSeparator(root);
 
-        // ---- 分区 2 ----
         if (_service.Monitors.Count == 0)
         {
             menu.AddItem(root, Loc.Get("NoMonitors"), false, false, null);
@@ -116,7 +121,6 @@ internal sealed class TrayAppContext : ApplicationContext
 
         menu.AddSeparator(root);
 
-        // ---- 分区 3 ----
         menu.AddItem(root, Loc.Get("About"), true, false, () =>
         {
             using var form = new AboutForm(_appIcon, _service.Monitors.Count);
@@ -130,19 +134,17 @@ internal sealed class TrayAppContext : ApplicationContext
 
     private void BuildMonitorMenu(NativeMenu menu, IntPtr root, MonitorDevice monitor)
     {
-        // 弹出前重读该显示器状态，保证勾选与禁用态是最新的
         try
         {
             _service.ReadState(monitor);
         }
         catch
         {
-            // DDC 偶发超时，沿用上一次状态
+            // Keep previous state if DDC occasionally times out
         }
 
         var sub = menu.AddSubMenu(root, monitor.DisplayLabel, enabled: true);
 
-        // ---- HDR ----
         if (monitor.SupportsHdr)
         {
             menu.AddItem(sub, Loc.Get("Hdr"), true, monitor.HdrEnabled, () =>
@@ -156,7 +158,6 @@ internal sealed class TrayAppContext : ApplicationContext
             menu.AddItem(sub, $"{Loc.Get("Hdr")} {Loc.Get("Unavailable")}", false, false, null);
         }
 
-        // ---- 亮度（三级菜单）----
         if (monitor.SupportsBrightness)
         {
             var brightness = menu.AddSubMenu(sub, Loc.Get("Brightness"), enabled: true);
@@ -178,7 +179,6 @@ internal sealed class TrayAppContext : ApplicationContext
             menu.AddItem(sub, $"{Loc.Get("Brightness")} {Loc.Get("Unavailable")}", false, false, null);
         }
 
-        // ---- 软关闭 ----
         if (!monitor.SupportsPower)
         {
             menu.AddItem(sub, $"{Loc.Get("SoftOff")} {Loc.Get("Unavailable")}", false, false, null);
@@ -197,8 +197,6 @@ internal sealed class TrayAppContext : ApplicationContext
         }
     }
 
-    // ---------------------------------------------------------------- 提示
-
     private void ShowBalloon(string message, ToolTipIcon icon)
     {
         _tray.BalloonTipTitle = Loc.Get("AppName");
@@ -207,14 +205,12 @@ internal sealed class TrayAppContext : ApplicationContext
         _tray.ShowBalloonTip(2500);
     }
 
-    // ---------------------------------------------------------------- 诊断
-
-    /// <summary>仅供诊断：把所有显示器标记为软关闭，用于验证菜单禁用态。</summary>
+    /// <summary>Diagnostics only: marks all monitors as soft-off to verify disabled menu states.</summary>
     internal void SimulateSoftOff() => _service.SimulateSoftOff();
 
     /// <summary>
-    /// 把菜单树渲染成文本。原生菜单没有可遍历的对象模型，
-    /// 因此这里复用同一套构建逻辑，把结果记录到 StringBuilder。
+    /// Renders the menu tree as text. Because native menus have no traversable object model,
+    /// this reuses the same construction logic and records the output into a StringBuilder.
     /// </summary>
     internal string DumpMenuTree()
     {
@@ -278,8 +274,6 @@ internal sealed class TrayAppContext : ApplicationContext
         return sb.ToString();
     }
 
-    // ---------------------------------------------------------------- 退出
-
     private void ExitApplication()
     {
         _tray.Visible = false;
@@ -308,8 +302,8 @@ internal sealed class TrayAppContext : ApplicationContext
     }
 
     /// <summary>
-    /// TrackPopupMenu 需要一个窗口作为 owner。这里用一个不可见的
-    /// 消息窗口顶替——它不参与布局，也不出现在任务栏。
+    /// TrackPopupMenu requires an owner window. Use an invisible message window
+    /// as a stand-in—it does not participate in layout and never appears on the taskbar.
     /// </summary>
     private sealed class MenuHostWindow : NativeWindow, IDisposable
     {

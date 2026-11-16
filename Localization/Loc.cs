@@ -1,9 +1,9 @@
-﻿using System.Globalization;
+using System.Globalization;
 
 namespace SpkDisplayController.Localization;
 
 /// <summary>
-/// 轻量 i18n：内置 5 种语言表，按系统区域自动选择，回退到英语。
+/// Lightweight i18n: built-in tables for 5 languages, auto-selected by system locale with English fallback.
 /// </summary>
 internal static class Loc
 {
@@ -34,6 +34,7 @@ internal static class Loc
                 ["SoftOffFail"] = "Failed to soft off {0}.",
                 ["HdrFail"] = "Failed to change HDR on {0}.",
                 ["BrightnessFail"] = "Failed to set brightness on {0}.",
+                ["AutoStartFail"] = "Failed to update Windows startup setting.",
                 ["AboutBody"] = "Per-monitor HDR, brightness and soft-off control from the system tray.\n\nSoft off keeps the monitor connected in Windows: no resolution change, no layout reshuffle.",
             },
 
@@ -59,6 +60,7 @@ internal static class Loc
                 ["SoftOffFail"] = "无法对 {0} 执行软关闭。",
                 ["HdrFail"] = "无法切换 {0} 的 HDR。",
                 ["BrightnessFail"] = "无法设置 {0} 的亮度。",
+                ["AutoStartFail"] = "无法更改随 Windows 启动设置。",
                 ["AboutBody"] = "从系统托盘对每台显示器单独控制 HDR、亮度与软关闭。\n\n软关闭不会让 Windows 判定显示器断开：分辨率、排列与窗口位置均保持不变。",
             },
 
@@ -84,6 +86,7 @@ internal static class Loc
                 ["SoftOffFail"] = "{0} のソフトオフに失敗しました。",
                 ["HdrFail"] = "{0} の HDR を切り替えられませんでした。",
                 ["BrightnessFail"] = "{0} の明るさを設定できませんでした。",
+                ["AutoStartFail"] = "Windows と共に起動の設定を変更できませんでした。",
                 ["AboutBody"] = "システムトレイからモニターごとに HDR・明るさ・ソフトオフを制御します。\n\nソフトオフしても Windows はモニターを接続中と認識するため、解像度や配置は変わりません。",
             },
 
@@ -109,6 +112,7 @@ internal static class Loc
                 ["SoftOffFail"] = "{0} 소프트 오프에 실패했습니다.",
                 ["HdrFail"] = "{0}의 HDR을 전환할 수 없습니다.",
                 ["BrightnessFail"] = "{0}의 밝기를 설정할 수 없습니다.",
+                ["AutoStartFail"] = "Windows 시작 시 실행 설정을 변경할 수 없습니다.",
                 ["AboutBody"] = "시스템 트레이에서 모니터별로 HDR, 밝기, 소프트 오프를 제어합니다.\n\n소프트 오프 후에도 Windows는 모니터가 연결된 것으로 인식하므로 해상도와 배치가 바뀌지 않습니다.",
             },
 
@@ -134,6 +138,7 @@ internal static class Loc
                 ["SoftOffFail"] = "Не удалось выполнить мягкое выключение {0}.",
                 ["HdrFail"] = "Не удалось переключить HDR на {0}.",
                 ["BrightnessFail"] = "Не удалось установить яркость на {0}.",
+                ["AutoStartFail"] = "Не удалось изменить настройку автозапуска с Windows.",
                 ["AboutBody"] = "Управление HDR, яркостью и мягким выключением для каждого монитора из системного трея.\n\nПосле мягкого выключения Windows продолжает считать монитор подключённым: разрешение и расположение не меняются.",
             },
         };

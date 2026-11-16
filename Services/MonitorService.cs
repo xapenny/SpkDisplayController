@@ -1,11 +1,11 @@
-﻿using System.Runtime.InteropServices;
+using System.Runtime.InteropServices;
 using SpkDisplayController.Models;
 using SpkDisplayController.Native;
 
 namespace SpkDisplayController.Services;
 
 /// <summary>
-/// 显示器枚举与操作。持有所有 DDC 句柄，需显式 Dispose。
+/// Monitor enumeration and control. Owns all DDC handles and must be explicitly disposed.
 /// </summary>
 internal sealed class MonitorService : IDisposable
 {
@@ -37,8 +37,6 @@ internal sealed class MonitorService : IDisposable
         ["AUO"] = "AUO",
     };
 
-    // ---------------------------------------------------------------- 枚举
-
     public void Refresh()
     {
         DisposeAll();
@@ -66,7 +64,7 @@ internal sealed class MonitorService : IDisposable
             if (!Ddc.GetPhysicalMonitorsFromHMONITOR(hMon, count, physical))
                 return true;
 
-            // 镜像模式下会有多个物理显示器；取第一个作为代表。
+            // Mirror mode can expose multiple physical monitors; take the first as representative.
             handles[deviceName] = (physical[0].hPhysicalMonitor,
                                    physical[0].szPhysicalMonitorDescription ?? string.Empty);
 
@@ -86,7 +84,7 @@ internal sealed class MonitorService : IDisposable
         {
             var deviceId = idMap.TryGetValue(deviceName, out var mapped) ? mapped.MonitorId : string.Empty;
 
-            // 通过 source 的 GDI 设备名精确匹配 \\.\DISPLAYn
+            // Match \\.\DISPLAYn accurately via the source's GDI device name
             var target = targets.FirstOrDefault(t =>
                 !string.IsNullOrEmpty(t.GdiDeviceName) &&
                 string.Equals(t.GdiDeviceName, deviceName, StringComparison.OrdinalIgnoreCase));
@@ -114,7 +112,7 @@ internal sealed class MonitorService : IDisposable
             _monitors.Add(monitor);
         }
 
-        // 按系统枚举顺序排序，保证菜单顺序稳定
+        // Sort in system enumeration order to keep menu order stable
         _monitors.Sort((a, b) => string.CompareOrdinal(a.DeviceName, b.DeviceName));
     }
 
@@ -145,14 +143,13 @@ internal sealed class MonitorService : IDisposable
         if (string.IsNullOrWhiteSpace(description))
             return vendorName;
 
-        // 描述里已经带厂商名时不重复
         if (description.StartsWith(vendorName, StringComparison.OrdinalIgnoreCase))
             return description;
 
         return $"{vendorName} {description}";
     }
 
-    /// <summary>去掉 DDC 描述里的括号补充，例如 "32M2N8900X (31.5 inch Wide OLED…)"。</summary>
+    /// <summary>Strips parenthetical suffixes from the DDC description, e.g., "32M2N8900X (31.5 inch Wide OLED…)".</summary>
     private static string CleanDescription(string description)
     {
         if (string.IsNullOrWhiteSpace(description))
@@ -164,8 +161,6 @@ internal sealed class MonitorService : IDisposable
 
         return description;
     }
-
-    // ---------------------------------------------------------------- 状态
 
     public void ReadState(MonitorDevice monitor)
     {
@@ -200,8 +195,6 @@ internal sealed class MonitorService : IDisposable
         foreach (var m in _monitors)
             ReadState(m);
     }
-
-    // ---------------------------------------------------------------- 操作
 
     public bool SetBrightnessPercent(MonitorDevice monitor, int percent)
     {
@@ -242,14 +235,12 @@ internal sealed class MonitorService : IDisposable
 
     public bool ToggleHdr(MonitorDevice monitor) => SetHdr(monitor, !monitor.HdrEnabled);
 
-    /// <summary>仅供诊断：在内存中把所有显示器标记为软关闭，不发送任何 DDC 命令。</summary>
+    /// <summary>Diagnostics only: marks all monitors as soft-off in memory without sending any DDC commands.</summary>
     internal void SimulateSoftOff()
     {
         foreach (var monitor in _monitors)
             monitor.PowerState = Ddc.PowerSoftOff;
     }
-
-    // ---------------------------------------------------------------- 释放
 
     private void DisposeAll()
     {
