@@ -271,6 +271,23 @@ internal sealed class MonitorService : IDisposable
         return true;
     }
 
+    public int[] GetSupportedRefreshRates(MonitorDevice monitor, int width, int height) =>
+        monitor.SupportsDisplayModes
+            ? DisplaySettings.GetSupportedRefreshRates(monitor.DeviceName, width, height)
+            : Array.Empty<int>();
+
+    public bool SetDisplayMode(MonitorDevice monitor, int? width, int? height, int? refreshRate)
+    {
+        if (!monitor.SupportsDisplayModes)
+            return false;
+
+        if (!DisplaySettings.TrySetDisplayMode(monitor.DeviceName, width, height, refreshRate))
+            return false;
+
+        ReadState(monitor);
+        return true;
+    }
+
     public bool SetOrientation(MonitorDevice monitor, int orientation)
     {
         if (!monitor.SupportsDisplayModes)

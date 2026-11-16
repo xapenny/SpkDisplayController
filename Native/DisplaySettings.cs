@@ -163,6 +163,57 @@ internal static class DisplaySettings
         return ApplyMode(deviceName, current, (int)current.dmPelsWidth, (int)current.dmPelsHeight, refreshRate);
     }
 
+    public static int[] GetSupportedRefreshRates(string deviceName, int width, int height)
+    {
+        var current = CreateDevMode();
+        if (!EnumDisplaySettingsEx(deviceName, EnumCurrentSettings, ref current, 0))
+            return Array.Empty<int>();
+
+        var rates = new HashSet<int>();
+        for (var i = 0; ; i++)
+        {
+            var mode = CreateDevMode();
+            if (!EnumDisplaySettingsEx(deviceName, i, ref mode, 0))
+                break;
+
+            if (mode.dmBitsPerPel != current.dmBitsPerPel || (mode.dmDisplayFlags & DmDisplayFlagsInterlaced) != 0)
+                continue;
+
+            if ((int)mode.dmPelsWidth != width || (int)mode.dmPelsHeight != height)
+                continue;
+
+            var hz = (int)mode.dmDisplayFrequency;
+            if (hz > 1)
+                rates.Add(hz);
+        }
+
+        return rates.OrderByDescending(hz => hz).ToArray();
+    }
+
+    public static bool TrySetDisplayMode(string deviceName, int? width, int? height, int? refreshRate)
+    {
+        var current = CreateDevMode();
+        if (!EnumDisplaySettingsEx(deviceName, EnumCurrentSettings, ref current, 0))
+            return false;
+
+        var targetW = width ?? (int)current.dmPelsWidth;
+        var targetH = height ?? (int)current.dmPelsHeight;
+        var targetHz = refreshRate ?? PickRefreshRateForResolution(
+            deviceName, current.dmBitsPerPel, targetW, targetH, (int)current.dmDisplayFrequency);
+
+        if (targetHz <= 1)
+            return false;
+
+        if ((int)current.dmPelsWidth == targetW
+            && (int)current.dmPelsHeight == targetH
+            && (int)current.dmDisplayFrequency == targetHz)
+        {
+            return true;
+        }
+
+        return ApplyMode(deviceName, current, targetW, targetH, targetHz);
+    }
+
     public static bool TrySetOrientation(string deviceName, int orientation)
     {
         if (orientation is < 0 or > 3)
