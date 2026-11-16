@@ -36,7 +36,7 @@ internal sealed class AboutForm : Form
 
         if (appIcon is not null)
         {
-            // 从多尺寸 ICO 中取 64×64，避免用托盘那档 32×32 放大后发虚
+            // Pick 64x64 from the multi-size ICO to avoid blurry upscaling from the 32x32 tray size
             using var large = new Icon(appIcon, 64, 64);
             logo.Image = large.ToBitmap();
         }

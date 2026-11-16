@@ -1,76 +1,168 @@
-using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Security.Principal;
 
 namespace SpkDisplayController.Native;
 
 /// <summary>
-/// 开机自启。
+/// Launch at startup via Windows Task Scheduler.
 /// </summary>
 /// <remarks>
-/// 程序清单声明了 requireAdministrator，若用 HKCU\...\Run 启动，
-/// 每次登录都会弹出 UAC 提示。改用任务计划程序的 ONLOGON + HIGHEST，
-/// 由任务计划服务持提升后的令牌，登录时静默启动，不弹 UAC。
+/// The app manifest declares requireAdministrator; launching via HKCU\...\Run
+/// would trigger a UAC prompt on every login. Instead, register a Task Scheduler
+/// entry with InteractiveToken + HighestAvailable via the Schedule.Service COM API
+/// so Task Scheduler launches it silently after logon with an elevated token.
 /// </remarks>
 internal static class AutoStart
 {
     private const string TaskName = "SpkDisplayController";
 
-    public static bool IsEnabled => TaskExists();
+    private const int TaskCreateOrUpdate = 6;
+    private const int TaskLogonInteractiveToken = 3;
+    private const int TaskRunLevelHighest = 1;
+    private const int TaskTriggerLogon = 9;
+    private const int TaskActionExec = 0;
+    private const int TaskInstancesIgnoreNew = 2;
 
-    public static void Set(bool enabled)
-    {
-        if (enabled)
-            Enable();
-        else
-            Disable();
-    }
+    public static string? LastError { get; private set; }
 
-    public static void Enable()
+    public static bool IsEnabled => TaskIsEnabledForCurrentExe();
+
+    public static bool Set(bool enabled) => enabled ? Enable() : Disable();
+
+    public static bool Enable()
     {
+        LastError = null;
         var exe = Environment.ProcessPath;
-
         if (string.IsNullOrEmpty(exe))
-            return;
+        {
+            LastError = "Executable path is unavailable.";
+            return false;
+        }
 
-        // /TR 的值本身需要带引号，因此内层还要再转义一次
-        var arguments = $"/Create /TN \"{TaskName}\" /TR \"\\\"{exe}\\\"\" /SC ONLOGON /RL HIGHEST /F";
-        RunSchtasks(arguments);
-    }
-
-    public static void Disable()
-    {
-        RunSchtasks($"/Delete /TN \"{TaskName}\" /F");
-    }
-
-    private static bool TaskExists()
-    {
-        return RunSchtasks($"/Query /TN \"{TaskName}\"");
-    }
-
-    private static bool RunSchtasks(string arguments)
-    {
         try
         {
-            var startInfo = new ProcessStartInfo("schtasks.exe", arguments)
+            var serviceType = Type.GetTypeFromProgID("Schedule.Service");
+            if (serviceType is null)
             {
-                CreateNoWindow = true,
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true
-            };
+                LastError = "Task Scheduler COM service is unavailable.";
+                return false;
+            }
 
-            using var process = Process.Start(startInfo);
+            dynamic service = Activator.CreateInstance(serviceType)!;
+            service.Connect();
 
-            if (process is null)
+            dynamic folder = service.GetFolder(@"\");
+            dynamic task = service.NewTask(0);
+
+            using var identity = WindowsIdentity.GetCurrent();
+            var userId = identity.User?.Value ?? identity.Name;
+
+            task.RegistrationInfo.Description = "Start SpkDisplayController automatically at Windows logon.";
+
+            task.Principal.UserId = userId;
+            task.Principal.LogonType = TaskLogonInteractiveToken;
+            task.Principal.RunLevel = TaskRunLevelHighest;
+
+            task.Settings.Enabled = true;
+            task.Settings.DisallowStartIfOnBatteries = false;
+            task.Settings.StopIfGoingOnBatteries = false;
+            task.Settings.ExecutionTimeLimit = "PT0S";
+            task.Settings.MultipleInstances = TaskInstancesIgnoreNew;
+            task.Settings.StartWhenAvailable = true;
+            task.Settings.IdleSettings.StopOnIdleEnd = false;
+
+            dynamic trigger = task.Triggers.Create(TaskTriggerLogon);
+            trigger.Id = "LogonTrigger";
+            trigger.UserId = userId;
+            trigger.Delay = "PT5S";
+            trigger.Enabled = true;
+
+            dynamic action = task.Actions.Create(TaskActionExec);
+            action.Path = exe;
+            var workingDir = Path.GetDirectoryName(exe);
+            if (!string.IsNullOrEmpty(workingDir))
+                action.WorkingDirectory = workingDir;
+
+            folder.RegisterTaskDefinition(
+                TaskName,
+                task,
+                TaskCreateOrUpdate,
+                null,
+                null,
+                TaskLogonInteractiveToken);
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            LastError = ex.Message;
+            return false;
+        }
+    }
+
+    public static bool Disable()
+    {
+        LastError = null;
+
+        try
+        {
+            var serviceType = Type.GetTypeFromProgID("Schedule.Service");
+            if (serviceType is null)
                 return false;
 
-            // 必须排空输出，否则管道写满会卡住子进程
-            process.StandardOutput.ReadToEnd();
-            process.StandardError.ReadToEnd();
+            dynamic service = Activator.CreateInstance(serviceType)!;
+            service.Connect();
 
-            if (!process.WaitForExit(8000))
+            dynamic folder = service.GetFolder(@"\");
+            folder.DeleteTask(TaskName, 0);
+            return true;
+        }
+        catch (FileNotFoundException)
+        {
+            return true;
+        }
+        catch (COMException ex) when (unchecked((uint)ex.HResult) == 0x80070002)
+        {
+            return true;
+        }
+        catch (Exception ex)
+        {
+            LastError = ex.Message;
+            return false;
+        }
+    }
+
+    private static bool TaskIsEnabledForCurrentExe()
+    {
+        var currentExe = Environment.ProcessPath;
+        if (string.IsNullOrEmpty(currentExe))
+            return false;
+
+        try
+        {
+            var serviceType = Type.GetTypeFromProgID("Schedule.Service");
+            if (serviceType is null)
                 return false;
 
-            return process.ExitCode == 0;
+            dynamic service = Activator.CreateInstance(serviceType)!;
+            service.Connect();
+
+            dynamic folder = service.GetFolder(@"\");
+            dynamic registered = folder.GetTask(TaskName);
+            if (!(bool)registered.Enabled)
+                return false;
+
+            foreach (dynamic action in registered.Definition.Actions)
+            {
+                if ((int)action.Type != TaskActionExec)
+                    continue;
+
+                var path = ((string?)action.Path)?.Trim().Trim('"');
+                if (string.Equals(path, currentExe, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+
+            return false;
         }
         catch
         {

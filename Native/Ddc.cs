@@ -1,23 +1,20 @@
-﻿using System.Runtime.InteropServices;
+using System.Runtime.InteropServices;
 
 namespace SpkDisplayController.Native;
 
 /// <summary>
-/// DDC/CI 互操作（dxva2.dll）与 GDI 显示设备枚举（user32.dll）。
+/// DDC/CI interop (dxva2.dll) and GDI display device enumeration (user32.dll).
 /// </summary>
 internal static class Ddc
 {
-    // VCP 代码
     public const byte VcpBrightness = 0x10;
     public const byte VcpPowerMode = 0xD6;
 
-    // VCP 0xD6 电源模式取值（MCCS 1.2）
+    // VCP 0xD6 power mode values (MCCS 1.2)
     public const uint PowerOn = 1;
     public const uint PowerStandby = 2;
     public const uint PowerSuspend = 3;
     public const uint PowerSoftOff = 4;
-
-    // ---------------------------------------------------------------- 结构
 
     [StructLayout(LayoutKind.Sequential)]
     public struct RECT
@@ -61,8 +58,6 @@ internal static class Ddc
 
     public delegate bool MonitorEnumProc(IntPtr hMonitor, IntPtr hdc, ref RECT rect, IntPtr data);
 
-    // ---------------------------------------------------------------- P/Invoke
-
     [DllImport("user32.dll", SetLastError = true)]
     public static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr clip, MonitorEnumProc proc, IntPtr data);
 
@@ -87,12 +82,9 @@ internal static class Ddc
     [DllImport("dxva2.dll", SetLastError = true)]
     public static extern bool DestroyPhysicalMonitor(IntPtr hPhysicalMonitor);
 
-    // ---------------------------------------------------------------- 高层封装
-
-    /// <summary>读取单个 VCP 值。失败返回 false。</summary>
     /// <remarks>
-    /// DXVA2 的 physical monitor 句柄是驱动内部的索引值，0 是合法句柄，
-    /// 因此不能拿 IntPtr.Zero 判断有效性。
+    /// DXVA2 physical monitor handles are driver-internal index values where 0 is valid,
+    /// so IntPtr.Zero must not be used to check handle validity.
     /// </remarks>
     public static bool TryGetVcp(IntPtr handle, byte code, out uint current, out uint maximum)
     {
@@ -101,15 +93,14 @@ internal static class Ddc
         return GetVCPFeatureAndVCPFeatureReply(handle, code, IntPtr.Zero, ref current, ref maximum);
     }
 
-    /// <summary>写入单个 VCP 值。</summary>
     public static bool TrySetVcp(IntPtr handle, byte code, uint value)
     {
         return SetVCPFeature(handle, code, value);
     }
 
     /// <summary>
-    /// 枚举 \\.\DISPLAYn 与其物理显示器 ID 的对应关系。
-    /// 返回字典：设备名 → (显示器 DeviceID, 适配器描述)。
+    /// Enumerates the mapping between \\.\DISPLAYn and physical monitor IDs.
+    /// Returns a dictionary: device name -> (monitor DeviceID, adapter description).
     /// </summary>
     public static Dictionary<string, (string MonitorId, string AdapterName)> MapDisplayIds()
     {

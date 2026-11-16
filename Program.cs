@@ -16,7 +16,6 @@ internal static class Program
 
         try
         {
-            // 可选的语言覆盖：--lang=zh-Hans / ja / ko / ru / en
             var langArg = args.FirstOrDefault(a =>
                 a.StartsWith("--lang=", StringComparison.OrdinalIgnoreCase));
             if (langArg is not null)
@@ -30,7 +29,6 @@ internal static class Program
                 }
                 catch
                 {
-                    // 无效语言标记时回退到系统设置
                 }
             }
 
@@ -38,14 +36,12 @@ internal static class Program
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
-            // 自检模式：枚举显示器并把状态写进程序目录，便于无界面验证。
             if (args.Any(a => string.Equals(a, "--selftest", StringComparison.OrdinalIgnoreCase)))
             {
                 RunSelfTest();
                 return;
             }
 
-            // 菜单结构转储：验证三分区与二级/三级菜单
             if (args.Any(a => string.Equals(a, "--dumpmenu", StringComparison.OrdinalIgnoreCase)))
             {
                 var simulate = args.Any(a => string.Equals(a, "--simulate-softoff", StringComparison.OrdinalIgnoreCase));
@@ -62,7 +58,7 @@ internal static class Program
         }
     }
 
-    // 注意：部分受限环境下 %TEMP% 对子进程不可写，因此日志落在程序目录。
+    // Note: In some restricted environments %TEMP% is not writable by child processes, so logs are written to the app directory.
     private static string LogPath(string fileName) =>
         Path.Combine(AppContext.BaseDirectory, fileName);
 
@@ -74,7 +70,6 @@ internal static class Program
         }
         catch
         {
-            // 无法落盘时放弃
         }
     }
 
@@ -108,7 +103,6 @@ internal static class Program
         }
         catch
         {
-            // 忽略
         }
     }
 
@@ -150,6 +144,7 @@ internal static class Program
                 sb.AppendLine($"  Brightness   : {(m.SupportsBrightness ? $"{m.Brightness}/{m.BrightnessMax} = {m.BrightnessPercent}%" : "<unsupported>")}");
                 sb.AppendLine($"  Power        : {(m.SupportsPower ? $"state={m.PowerState} softOff={m.IsSoftOff}" : "<unsupported>")}");
                 sb.AppendLine($"  HDR          : {(m.SupportsHdr ? (m.HdrEnabled ? "enabled" : "disabled") : "<unsupported>")}");
+                sb.AppendLine($"  DisplayMode  : {(m.SupportsDisplayModes ? $"{m.CurrentWidth}x{m.CurrentHeight} @{m.CurrentRefreshRate}Hz orient={m.CurrentOrientation} ({m.SupportedResolutions.Count} res, {m.SupportedRefreshRates.Count} hz)" : "<unsupported>")}");
             }
         }
         catch (Exception ex)
@@ -164,7 +159,6 @@ internal static class Program
         }
         catch
         {
-            // 忽略
         }
     }
 }

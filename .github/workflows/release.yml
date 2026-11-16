@@ -58,10 +58,41 @@ jobs:
           Copy-Item 'dist/SpkDisplayController.exe' $staging
           Copy-Item 'README.md' $staging
           Copy-Item 'README.zh-CN.md' $staging
+          Copy-Item 'CHANGELOG.md' $staging
           Copy-Item 'LICENSE' $staging
 
           Compress-Archive -Path "$staging/*" -DestinationPath "SpkDisplayController-$version-win-x64.zip" -Force
           Get-ChildItem -Filter 'SpkDisplayController-*.zip' | Select-Object Name, Length
+
+      - name: Extract release notes
+        shell: pwsh
+        run: |
+          $tag = if ('${{ github.event_name }}' -eq 'workflow_dispatch') { '${{ inputs.tag }}' } else { '${{ github.ref_name }}' }
+          $ver = [regex]::Escape($tag.TrimStart('v'))
+          $lines = Get-Content 'CHANGELOG.md' -Encoding UTF8
+
+          $capture = $false
+          $notes = [System.Collections.Generic.List[string]]::new()
+          foreach ($line in $lines) {
+            if (-not $capture) {
+              if ($line -match "^##\s+\[?$ver\]?(\s|$)") {
+                $capture = $true
+              }
+              continue
+            }
+            if ($line -match '^##\s+' -or $line -match '^\[[^\]]+\]:\s+http') {
+              break
+            }
+            $notes.Add($line)
+          }
+
+          $body = ($notes -join "`n").Trim()
+          if ([string]::IsNullOrWhiteSpace($body)) {
+            throw "Release notes for $tag ([$ver]) not found in CHANGELOG.md"
+          }
+
+          [System.IO.File]::WriteAllText('release-notes.md', $body + "`n", [System.Text.UTF8Encoding]::new($false))
+          Get-Content 'release-notes.md'
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
@@ -70,7 +101,7 @@ jobs:
           name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
           draft: false
           prerelease: false
-          generate_release_notes: true
+          body_path: release-notes.md
           files: |
             dist/SpkDisplayController.exe
             SpkDisplayController-*-win-x64.zip

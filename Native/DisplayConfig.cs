@@ -1,24 +1,20 @@
-﻿using System.Runtime.InteropServices;
+using System.Runtime.InteropServices;
 
 namespace SpkDisplayController.Native;
 
 /// <summary>
-/// DisplayConfig 互操作：枚举输出目标、读写 HDR（advanced color）状态。
+/// DisplayConfig interop: enumerates output targets and reads/writes HDR (advanced color) state.
 /// </summary>
 internal static class DisplayConfig
 {
-    // QueryDisplayConfig flags
     private const uint QDC_ALL_PATHS = 1;
     private const uint QDC_ONLY_ACTIVE_PATHS = 2;
     private const uint QDC_DATABASE_CURRENT = 4;
 
-    // DisplayConfigGetDeviceInfo / SetDeviceInfo types
     private const uint GET_SOURCE_NAME = 1;
     private const uint GET_TARGET_NAME = 2;
     private const uint GET_ADVANCED_COLOR_INFO = 9;
     private const uint SET_ADVANCED_COLOR_STATE_TYPE = 10;
-
-    // ---------------------------------------------------------------- 结构
 
     [StructLayout(LayoutKind.Sequential)]
     public struct LUID
@@ -60,7 +56,7 @@ internal static class DisplayConfig
         public uint flags;
     }
 
-    // union 最大成员 DISPLAYCONFIG_TARGET_MODE = 48 字节
+    // Largest union member DISPLAYCONFIG_TARGET_MODE = 48 bytes
     [StructLayout(LayoutKind.Sequential)]
     private struct MODE_INFO
     {
@@ -118,8 +114,6 @@ internal static class DisplayConfig
         public uint value;
     }
 
-    // ---------------------------------------------------------------- P/Invoke
-
     [DllImport("user32.dll", SetLastError = true)]
     private static extern int GetDisplayConfigBufferSizes(uint flags, out uint numPath, out uint numMode);
 
@@ -144,8 +138,6 @@ internal static class DisplayConfig
     [DllImport("user32.dll", SetLastError = true)]
     private static extern int DisplayConfigSetDeviceInfo(ref SET_ADVANCED_COLOR_STATE info);
 
-    // ---------------------------------------------------------------- 模型
-
     public sealed class TargetInfo
     {
         public LUID AdapterId { get; init; }
@@ -154,10 +146,10 @@ internal static class DisplayConfig
         public string FriendlyName { get; init; } = string.Empty;
         public string MonitorDevicePath { get; init; } = string.Empty;
 
-        /// <summary>该 target 所属 source 的 GDI 设备名，例如 \\.\DISPLAY1。</summary>
+        /// <summary>GDI device name of the source associated with this target, e.g., \\.\DISPLAY1.</summary>
         public string GdiDeviceName { get; init; } = string.Empty;
 
-        /// <summary>规范化成 DISPLAY\ACR0724\5&amp;... 形式，便于与 GDI DeviceID 比对。</summary>
+        /// <summary>Normalized to DISPLAY\ACR0724\5&amp;... format for comparison with GDI DeviceID.</summary>
         public string NormalizedPath => NormalizePath(MonitorDevicePath);
     }
 
@@ -177,12 +169,10 @@ internal static class DisplayConfig
         return s.Replace('#', '\\');
     }
 
-    // ---------------------------------------------------------------- 查询
-
     /// <summary>
-    /// 枚举当前活动的输出目标。
-    /// QDC_ONLY_ACTIVE_PATHS 在部分显卡驱动上返回 ERROR_INVALID_PARAMETER，
-    /// 因此按 QDC_ONLY_ACTIVE_PATHS → QDC_DATABASE_CURRENT → QDC_ALL_PATHS 依次回退。
+    /// Enumerates currently active output targets.
+    /// QDC_ONLY_ACTIVE_PATHS returns ERROR_INVALID_PARAMETER on some GPU drivers,
+    /// so fall back in order: QDC_ONLY_ACTIVE_PATHS -> QDC_DATABASE_CURRENT -> QDC_ALL_PATHS.
     /// </summary>
     public static List<TargetInfo> GetTargets()
     {
@@ -222,7 +212,6 @@ internal static class DisplayConfig
             var source = path.sourceInfo;
             var target = path.targetInfo;
 
-            // source → \\.\DISPLAYn
             var sourceName = new SOURCE_DEVICE_NAME
             {
                 header = new DEVICE_INFO_HEADER
@@ -235,7 +224,6 @@ internal static class DisplayConfig
             };
             var sourceOk = GetSourceName(ref sourceName) == 0;
 
-            // target → 显示器路径与友好名
             var name = new TARGET_DEVICE_NAME
             {
                 header = new DEVICE_INFO_HEADER
@@ -262,7 +250,6 @@ internal static class DisplayConfig
         return list;
     }
 
-    /// <summary>读取 HDR 支持与启用状态。</summary>
     public static bool TryGetHdr(TargetInfo target, out bool supported, out bool enabled)
     {
         supported = false;
@@ -287,7 +274,6 @@ internal static class DisplayConfig
         return true;
     }
 
-    /// <summary>设置 HDR 开关。</summary>
     public static bool SetHdr(TargetInfo target, bool enable)
     {
         var state = new SET_ADVANCED_COLOR_STATE
