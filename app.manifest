@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
-  <assemblyIdentity version="1.1.0.0" name="SpkDisplayController.app" />
+  <assemblyIdentity version="1.2.0.0" name="SpkDisplayController.app" />
 
   <!-- Require administrator privileges. On some GPU drivers, DDC/CI and DisplayConfig
        require an elevated token to read and write HDR and power mode settings. -->
