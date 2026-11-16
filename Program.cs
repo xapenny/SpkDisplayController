@@ -144,6 +144,7 @@ internal static class Program
                 sb.AppendLine($"  Brightness   : {(m.SupportsBrightness ? $"{m.Brightness}/{m.BrightnessMax} = {m.BrightnessPercent}%" : "<unsupported>")}");
                 sb.AppendLine($"  Power        : {(m.SupportsPower ? $"state={m.PowerState} softOff={m.IsSoftOff}" : "<unsupported>")}");
                 sb.AppendLine($"  HDR          : {(m.SupportsHdr ? (m.HdrEnabled ? "enabled" : "disabled") : "<unsupported>")}");
+                sb.AppendLine($"  DisplayMode  : {(m.SupportsDisplayModes ? $"{m.CurrentWidth}x{m.CurrentHeight} @{m.CurrentRefreshRate}Hz orient={m.CurrentOrientation} ({m.SupportedResolutions.Count} res, {m.SupportedRefreshRates.Count} hz)" : "<unsupported>")}");
             }
         }
         catch (Exception ex)

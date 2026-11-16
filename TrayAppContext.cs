@@ -14,6 +14,13 @@ namespace SpkDisplayController;
 internal sealed class TrayAppContext : ApplicationContext
 {
     private static readonly int[] BrightnessPresets = { 1, 25, 50, 75, 100 };
+    private static readonly (int Value, string LocKey)[] OrientationPresets =
+    {
+        (0, "Orientation0"),
+        (1, "Orientation90"),
+        (2, "Orientation180"),
+        (3, "Orientation270"),
+    };
 
     private readonly NotifyIcon _tray;
     private readonly MenuHostWindow _menuHost;
@@ -179,6 +186,70 @@ internal sealed class TrayAppContext : ApplicationContext
             menu.AddItem(sub, $"{Loc.Get("Brightness")} {Loc.Get("Unavailable")}", false, false, null);
         }
 
+        if (monitor.SupportsDisplayModes && monitor.SupportedResolutions.Count > 0)
+        {
+            var resolution = menu.AddSubMenu(sub, Loc.Get("Resolution"), enabled: true);
+
+            foreach (var (w, h) in monitor.SupportedResolutions)
+            {
+                var width = w;
+                var height = h;
+                var isChecked = width == monitor.CurrentWidth && height == monitor.CurrentHeight;
+
+                menu.AddItem(resolution, $"{width} × {height}", true, isChecked, () =>
+                {
+                    if (!_service.SetResolution(monitor, width, height))
+                        ShowBalloon(Loc.Get("ResolutionFail", monitor.DisplayLabel), ToolTipIcon.Warning);
+                });
+            }
+        }
+        else
+        {
+            menu.AddItem(sub, $"{Loc.Get("Resolution")} {Loc.Get("Unavailable")}", false, false, null);
+        }
+
+        if (monitor.SupportsDisplayModes && monitor.SupportedRefreshRates.Count > 0)
+        {
+            var refresh = menu.AddSubMenu(sub, Loc.Get("RefreshRate"), enabled: true);
+
+            foreach (var hz in monitor.SupportedRefreshRates)
+            {
+                var rate = hz;
+                var isChecked = rate == monitor.CurrentRefreshRate;
+
+                menu.AddItem(refresh, $"{rate} Hz", true, isChecked, () =>
+                {
+                    if (!_service.SetRefreshRate(monitor, rate))
+                        ShowBalloon(Loc.Get("RefreshRateFail", monitor.DisplayLabel), ToolTipIcon.Warning);
+                });
+            }
+        }
+        else
+        {
+            menu.AddItem(sub, $"{Loc.Get("RefreshRate")} {Loc.Get("Unavailable")}", false, false, null);
+        }
+
+        if (monitor.SupportsDisplayModes)
+        {
+            var orientation = menu.AddSubMenu(sub, Loc.Get("Orientation"), enabled: true);
+
+            foreach (var (value, locKey) in OrientationPresets)
+            {
+                var targetOrient = value;
+                var isChecked = monitor.CurrentOrientation == targetOrient;
+
+                menu.AddItem(orientation, Loc.Get(locKey), true, isChecked, () =>
+                {
+                    if (!_service.SetOrientation(monitor, targetOrient))
+                        ShowBalloon(Loc.Get("OrientationFail", monitor.DisplayLabel), ToolTipIcon.Warning);
+                });
+            }
+        }
+        else
+        {
+            menu.AddItem(sub, $"{Loc.Get("Orientation")} {Loc.Get("Unavailable")}", false, false, null);
+        }
+
         if (!monitor.SupportsPower)
         {
             menu.AddItem(sub, $"{Loc.Get("SoftOff")} {Loc.Get("Unavailable")}", false, false, null);
@@ -254,6 +325,54 @@ internal sealed class TrayAppContext : ApplicationContext
                 else
                 {
                     Line($"{Loc.Get("Brightness")} {Loc.Get("Unavailable")} [disabled]");
+                }
+
+                if (monitor.SupportsDisplayModes && monitor.SupportedResolutions.Count > 0)
+                {
+                    Line(Loc.Get("Resolution") + " >");
+                    depth = 2;
+                    foreach (var (w, h) in monitor.SupportedResolutions)
+                    {
+                        var chk = w == monitor.CurrentWidth && h == monitor.CurrentHeight;
+                        Line($"{w} × {h}" + (chk ? " [checked]" : ""));
+                    }
+                    depth = 1;
+                }
+                else
+                {
+                    Line($"{Loc.Get("Resolution")} {Loc.Get("Unavailable")} [disabled]");
+                }
+
+                if (monitor.SupportsDisplayModes && monitor.SupportedRefreshRates.Count > 0)
+                {
+                    Line(Loc.Get("RefreshRate") + " >");
+                    depth = 2;
+                    foreach (var hz in monitor.SupportedRefreshRates)
+                    {
+                        var chk = hz == monitor.CurrentRefreshRate;
+                        Line($"{hz} Hz" + (chk ? " [checked]" : ""));
+                    }
+                    depth = 1;
+                }
+                else
+                {
+                    Line($"{Loc.Get("RefreshRate")} {Loc.Get("Unavailable")} [disabled]");
+                }
+
+                if (monitor.SupportsDisplayModes)
+                {
+                    Line(Loc.Get("Orientation") + " >");
+                    depth = 2;
+                    foreach (var (value, locKey) in OrientationPresets)
+                    {
+                        var chk = monitor.CurrentOrientation == value;
+                        Line(Loc.Get(locKey) + (chk ? " [checked]" : ""));
+                    }
+                    depth = 1;
+                }
+                else
+                {
+                    Line($"{Loc.Get("Orientation")} {Loc.Get("Unavailable")} [disabled]");
                 }
 
                 if (!monitor.SupportsPower)

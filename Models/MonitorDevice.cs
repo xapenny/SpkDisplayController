@@ -41,6 +41,14 @@ internal sealed class MonitorDevice : IDisposable
     public bool SupportsHdr { get; internal set; }
     public bool HdrEnabled { get; internal set; }
 
+    public bool SupportsDisplayModes { get; internal set; }
+    public int CurrentWidth { get; internal set; }
+    public int CurrentHeight { get; internal set; }
+    public int CurrentRefreshRate { get; internal set; }
+    public int CurrentOrientation { get; internal set; }
+    public IReadOnlyList<(int Width, int Height)> SupportedResolutions { get; internal set; } = Array.Empty<(int, int)>();
+    public IReadOnlyList<int> SupportedRefreshRates { get; internal set; } = Array.Empty<int>();
+
     public int BrightnessPercent =>
         BrightnessMax <= 0 ? 0 : (int)Math.Round(Brightness * 100.0 / BrightnessMax);
 

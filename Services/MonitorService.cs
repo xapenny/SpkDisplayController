@@ -167,6 +167,7 @@ internal sealed class MonitorService : IDisposable
         monitor.SupportsBrightness = false;
         monitor.SupportsPower = false;
         monitor.SupportsHdr = false;
+        monitor.SupportsDisplayModes = false;
 
         if (Ddc.TryGetVcp(monitor.Handle, Ddc.VcpBrightness, out var brightness, out var brightnessMax)
             && brightnessMax > 0)
@@ -187,6 +188,17 @@ internal sealed class MonitorService : IDisposable
         {
             monitor.SupportsHdr = supported;
             monitor.HdrEnabled = enabled;
+        }
+
+        if (DisplaySettings.TryGetState(monitor.DeviceName, out var modeState))
+        {
+            monitor.SupportsDisplayModes = true;
+            monitor.CurrentWidth = modeState.Width;
+            monitor.CurrentHeight = modeState.Height;
+            monitor.CurrentRefreshRate = modeState.RefreshRate;
+            monitor.CurrentOrientation = modeState.Orientation;
+            monitor.SupportedResolutions = modeState.Resolutions;
+            monitor.SupportedRefreshRates = modeState.RefreshRates;
         }
     }
 
@@ -234,6 +246,42 @@ internal sealed class MonitorService : IDisposable
     }
 
     public bool ToggleHdr(MonitorDevice monitor) => SetHdr(monitor, !monitor.HdrEnabled);
+
+    public bool SetResolution(MonitorDevice monitor, int width, int height)
+    {
+        if (!monitor.SupportsDisplayModes)
+            return false;
+
+        if (!DisplaySettings.TrySetResolution(monitor.DeviceName, width, height))
+            return false;
+
+        ReadState(monitor);
+        return true;
+    }
+
+    public bool SetRefreshRate(MonitorDevice monitor, int refreshRate)
+    {
+        if (!monitor.SupportsDisplayModes)
+            return false;
+
+        if (!DisplaySettings.TrySetRefreshRate(monitor.DeviceName, refreshRate))
+            return false;
+
+        ReadState(monitor);
+        return true;
+    }
+
+    public bool SetOrientation(MonitorDevice monitor, int orientation)
+    {
+        if (!monitor.SupportsDisplayModes)
+            return false;
+
+        if (!DisplaySettings.TrySetOrientation(monitor.DeviceName, orientation))
+            return false;
+
+        ReadState(monitor);
+        return true;
+    }
 
     /// <summary>Diagnostics only: marks all monitors as soft-off in memory without sending any DDC commands.</summary>
     internal void SimulateSoftOff()
