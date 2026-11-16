@@ -8,6 +8,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-16
+
+### Added
+- Composable CLI control (--list/-l, --json/-j, --monitor/-m, --resolution/-r, --refresh-rate/-f, --orientation/-o, --hdr/-H, --brightness/-b, --soft-off/-s, --refresh-monitors/-R, --help/-h), supporting both -- and - prefixes.
+- Named Pipe IPC (SpkDisplayController.Ipc) so CLI commands automatically route through a running tray instance without DDC contention, or execute standalone when no tray instance is open.
+- Single-instance mutex for tray mode to prevent duplicate tray icons.
+
+### Changed
+- Updated README.md and README.zh-CN.md with CLI usage, examples, and exit codes.
+
+---
+
+### 新增
+- 新增可组合的命令行控制功能（--list/-l、--json/-j、--monitor/-m、--resolution/-r、--refresh-rate/-f、--orientation/-o、--hdr/-H、--brightness/-b、--soft-off/-s、--refresh-monitors/-R、--help/-h），长参数同时支持 -- 与 - 前缀。
+- 新增 Named Pipe IPC（SpkDisplayController.Ipc）：托盘运行时 CLI 自动通过运行中的托盘实例执行以避免 DDC 冲突，未运行托盘时也可独立执行。
+- 为托盘模式增加单实例互斥锁，防止重复启动多个托盘图标。
+
+### 变更
+- 更新 README.md 与 README.zh-CN.md，补充命令行用法、示例与退出码说明。
+
 ## [1.1.0] - 2026-11-16
 
 ### Added
@@ -46,6 +66,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 首个发布版本，支持从 Windows 系统托盘按显示器独立控制 HDR、DDC/CI 亮度预设与 DDC/CI 软关闭。
 - 内置 5 种界面语言支持（`en`、`zh-Hans`、`ja`、`ko`、`ru`）。
 
-[Unreleased]: https://github.com/xapenny/SpkDisplayController/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/xapenny/SpkDisplayController/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/xapenny/SpkDisplayController/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/xapenny/SpkDisplayController/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/xapenny/SpkDisplayController/releases/tag/v1.0.0

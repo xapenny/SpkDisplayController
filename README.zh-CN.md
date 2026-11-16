@@ -4,7 +4,7 @@
 
 <img src="docs/icon.png" width="112" alt="SpkDisplayController" />
 
-**从系统托盘控制每台显示器的 HDR、亮度、分辨率、刷新率、显示方向和电源状态。**
+**从系统托盘或命令行控制每台显示器的 HDR、亮度、分辨率、刷新率、显示方向和电源状态。**
 
 [![CI](https://github.com/xapenny/SpkDisplayController/actions/workflows/ci.yml/badge.svg)](https://github.com/xapenny/SpkDisplayController/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/xapenny/SpkDisplayController?display_name=tag)](https://github.com/xapenny/SpkDisplayController/releases)
@@ -22,10 +22,11 @@ SpkDisplayController 是一个轻量的 Windows 系统托盘工具，无需打�
 ## 功能
 
 - **HDR**：为每台显示器独立开关 HDR。
-- **亮度**：通过 DDC/CI 快速切换亮度预设（`1%`、`25%`、`50%`、`75%`、`100%`）。
+- **亮度**：托盘菜单提供快捷预设（`1%`、`25%`、`50%`、`75%`、`100%`），命令行支持 `0–100` 任意百分比。
 - **分辨率与刷新率**：按显示器切换支持的分辨率与刷新率。
 - **显示方向**：在横向、纵向、横向（翻转）、纵向（翻转）之间切换。
 - **软关闭**：通过 DDC/CI（`VCP 0xD6 = 4`）关闭显示器面板，同时保持 Windows 连接状态，不打乱桌面布局和窗口位置。
+- **命令行控制**：支持脚本化命令行操作；若后台已有托盘实例运行会自动转发协同，未运行托盘时也可独立执行。
 - **开机启动**：支持登录时自动启动，且不重复弹出 UAC 提示。
 - **多语言**：支持英语、简体中文、日语、韩语和俄语。
 
@@ -47,11 +48,59 @@ SpkDisplayController 是一个轻量的 Windows 系统托盘工具，无需打�
 
 开启 **随 Windows 启动** 后，程序会在 Windows 任务计划程序中注册名为 `SpkDisplayController` 的高权限登录任务，以便开机登录时静默启动而不弹出 UAC。
 
+## 命令行用法
+
+无论后台是否已有托盘实例运行，都可以直接通过命令行控制显示器。当托盘实例正在运行时，命令会通过本地 Named Pipe 转发给托盘进程执行，避免 DDC 并发冲突并保持托盘状态实时同步；未运行托盘时则会直接在当前进程执行后退出。
+
+> **注意（PowerShell / UAC）**：由于 `SpkDisplayController.exe` 是带有 `requireAdministrator` 的 `WinExe` 程序，请在**管理员终端**中运行，并在交互式 PowerShell 下配合 `| Out-String`（或 `Start-Process -Wait`）等待输出回显。
+
+```powershell
+# 列出显示器及当前状态（文本或 JSON）
+.\SpkDisplayController.exe -l | Out-String
+.\SpkDisplayController.exe --list --json | Out-String
+
+# 在一条命令中组合修改多项参数
+.\SpkDisplayController.exe -m 1 --resolution 1920x1080 --refresh-rate 60 | Out-String
+.\SpkDisplayController.exe -m 1 -r 2560x1440 -f 144 -H off -b 50 | Out-String
+.\SpkDisplayController.exe -m Philips -orientation portrait | Out-String
+.\SpkDisplayController.exe -m all --soft-off | Out-String
+.\SpkDisplayController.exe -R | Out-String
+```
+
+所有长参数均同时支持 `--` 与单 `-` 前缀（如 `--refresh-rate` 或 `-refresh-rate`），并支持 `=` 赋值写法：
+
+| 参数 | 简写 | 取值 | 说明 |
+| --- | --- | --- | --- |
+| `--monitor` | `-m` | `<目标>` | 序号 `1..N`、`DISPLAYn` / `\\.\DISPLAYn`、名称关键字或 `all` |
+| `--list` | `-l` | — | 列出显示器、当前模式、HDR、亮度与电源状态（也支持直接写 `list`） |
+| `--json` | `-j` | — | 配合 `--list` 输出 JSON 格式 |
+| `--resolution` | `-r` | `<宽x高>` | 设置分辨率（如 `1920x1080`） |
+| `--refresh-rate` | `-f` | `<Hz>` | 设置刷新率（别名 `--refresh`、`--hz`；如 `60` 或 `60Hz`） |
+| `--orientation` | `-o` | `<值>` | `0`/`landscape`、`90`/`portrait`、`180`/`landscape-flipped`、`270`/`portrait-flipped` |
+| `--hdr` | `-H` | `<on\|off\|toggle>` | 设置或切换 HDR |
+| `--brightness` | `-b` | `<0-100>` | 设置 DDC 亮度百分比（`0..100`） |
+| `--soft-off` | `-s` | — | 发送 DDC 软关闭指令（`VCP 0xD6 = 4`） |
+| `--refresh-monitors` | `-R` | — | 通知运行中的托盘实例重新枚举显示器 |
+| `--help` | `-h` | — | 显示命令行帮助 |
+
+- **退出码**：`0` 成功、`1` 执行失败、`2` 参数错误或显示器/模式不支持。
+
+### 诊断参数
+
+诊断参数会将结果写入程序所在目录后退出：
+
+| 参数 | 说明 |
+| --- | --- |
+| `--selftest` | 枚举显示器并将能力与状态写入 `SpkDisplayController-selftest.txt` |
+| `--dumpmenu` | 将托盘菜单结构写入 `SpkDisplayController-menu.txt` |
+| `--simulate-softoff` | 配合 `--dumpmenu` 使用，在内存中模拟所有显示器处于软关闭状态 |
+| `--lang=<code>` | 指定界面语言（`en`、`zh-Hans`、`ja`、`ko`、`ru`） |
+
 ## 已知限制
 
 - **软关闭后的唤醒**：部分显示器在收到软关闭指令（`VCP 0xD6 = 4`）后会进入深度待机，无法通过鼠标/键盘或 DDC 指令唤醒，需要通过显示器物理电源键重新打开。
 - **DDC/CI 支持情况**：笔记本内置屏幕、虚拟显示器以及在 OSD 中关闭了 DDC/CI 的显示器不支持 DDC 亮度和软关闭，对应菜单项会显示为不可用。
-- **亮度预设**：亮度菜单提供固定的 `1%`、`25%`、`50%`、`75%` 和 `100%` 档位；若当前亮度不匹配其中任一档位，则不会显示勾选标记。
+- **亮度预设**：托盘亮度菜单提供固定的 `1%`、`25%`、`50%`、`75%` 和 `100%` 档位；若当前亮度不匹配其中任一档位，则不会显示勾选标记（命令行支持 `0–100` 任意数值）。
 
 ## 构建
 
@@ -64,17 +113,6 @@ dotnet build -c Release
 # 发布为依赖 .NET Runtime 的单文件程序 -> dist/SpkDisplayController.exe
 dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o dist
 ```
-
-## 命令行参数
-
-诊断参数会将结果输出到程序所在目录后退出：
-
-| 参数 | 说明 |
-| --- | --- |
-| `--selftest` | 枚举显示器并将能力与状态写入 `SpkDisplayController-selftest.txt` |
-| `--dumpmenu` | 将托盘菜单结构写入 `SpkDisplayController-menu.txt` |
-| `--simulate-softoff` | 配合 `--dumpmenu` 使用，在内存中模拟所有显示器处于软关闭状态 |
-| `--lang=<code>` | 指定界面语言（`en`、`zh-Hans`、`ja`、`ko`、`ru`） |
 
 ## 许可证
 

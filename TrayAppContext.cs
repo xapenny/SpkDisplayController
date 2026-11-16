@@ -1,4 +1,5 @@
 using System.Reflection;
+using SpkDisplayController.Cli;
 using SpkDisplayController.Localization;
 using SpkDisplayController.Models;
 using SpkDisplayController.Native;
@@ -24,17 +25,21 @@ internal sealed class TrayAppContext : ApplicationContext
 
     private readonly NotifyIcon _tray;
     private readonly MenuHostWindow _menuHost;
+    private readonly Control _dispatcher;
     private readonly MonitorService _service = new();
     private readonly Icon? _appIcon;
+    private readonly IpcBridge.Server? _ipcServer;
 
     private bool _disposed;
 
-    public TrayAppContext()
+    public TrayAppContext(bool enableIpc = true)
     {
         Loc.Initialize();
 
         _appIcon = LoadAppIcon();
         _menuHost = new MenuHostWindow();
+        _dispatcher = new Control();
+        _ = _dispatcher.Handle;
 
         _tray = new NotifyIcon
         {
@@ -54,6 +59,9 @@ internal sealed class TrayAppContext : ApplicationContext
         {
             // Display enumeration may fail transiently during early logon.
         }
+
+        if (enableIpc)
+            _ipcServer = new IpcBridge.Server(HandleIpcRequest);
     }
 
     private static Icon? LoadAppIcon()
@@ -393,6 +401,24 @@ internal sealed class TrayAppContext : ApplicationContext
         return sb.ToString();
     }
 
+    private CliResponse HandleIpcRequest(CliRequest request)
+    {
+        if (_disposed || !_dispatcher.IsHandleCreated)
+            return new CliResponse { ExitCode = 1, Stderr = "Tray host is shutting down." };
+
+        try
+        {
+            return _dispatcher.Invoke(() =>
+                _disposed
+                    ? new CliResponse { ExitCode = 1, Stderr = "Tray host is shutting down." }
+                    : CliCommandHandler.Execute(_service, request));
+        }
+        catch (ObjectDisposedException)
+        {
+            return new CliResponse { ExitCode = 1, Stderr = "Tray host is shutting down." };
+        }
+    }
+
     private void ExitApplication()
     {
         _tray.Visible = false;
@@ -406,6 +432,7 @@ internal sealed class TrayAppContext : ApplicationContext
             _disposed = true;
 
             SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
+            _ipcServer?.Dispose();
 
             if (_tray is not null)
             {
@@ -413,6 +440,7 @@ internal sealed class TrayAppContext : ApplicationContext
                 _tray.Dispose();
             }
 
+            _dispatcher.Dispose();
             _menuHost?.Dispose();
             _service.Dispose();
         }

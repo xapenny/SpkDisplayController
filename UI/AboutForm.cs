@@ -55,7 +55,7 @@ internal sealed class AboutForm : Form
         var subtitle = new Label
         {
             Text = $"{Loc.Get("Version")} {version}",
-            Location = new Point(107, 58),
+            Location = new Point(107, 62),
             AutoSize = true,
             ForeColor = Color.Gray
         };

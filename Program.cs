@@ -1,13 +1,17 @@
 using System.Text;
+using SpkDisplayController.Cli;
 using SpkDisplayController.Localization;
+using SpkDisplayController.Native;
 using SpkDisplayController.Services;
 
 namespace SpkDisplayController;
 
 internal static class Program
 {
+    private const string TrayMutexName = @"Local\SpkDisplayController.Tray";
+
     [STAThread]
-    private static void Main(string[] args)
+    private static int Main(string[] args)
     {
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
         {
@@ -16,14 +20,11 @@ internal static class Program
 
         try
         {
-            var langArg = args.FirstOrDefault(a =>
-                a.StartsWith("--lang=", StringComparison.OrdinalIgnoreCase));
-            if (langArg is not null)
+            if (CliParser.TryExtractLanguage(args, out var langCode) && !string.IsNullOrWhiteSpace(langCode))
             {
-                var code = langArg["--lang=".Length..];
                 try
                 {
-                    var culture = new System.Globalization.CultureInfo(code);
+                    var culture = new System.Globalization.CultureInfo(langCode);
                     System.Globalization.CultureInfo.CurrentUICulture = culture;
                     System.Globalization.CultureInfo.CurrentCulture = culture;
                 }
@@ -36,26 +37,63 @@ internal static class Program
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
-            if (args.Any(a => string.Equals(a, "--selftest", StringComparison.OrdinalIgnoreCase)))
+            if (CliParser.HasFlag(args, "selftest"))
             {
                 RunSelfTest();
-                return;
+                return 0;
             }
 
-            if (args.Any(a => string.Equals(a, "--dumpmenu", StringComparison.OrdinalIgnoreCase)))
+            if (CliParser.HasFlag(args, "dumpmenu"))
             {
-                var simulate = args.Any(a => string.Equals(a, "--simulate-softoff", StringComparison.OrdinalIgnoreCase));
+                var simulate = CliParser.HasFlag(args, "simulate-softoff");
                 RunMenuDump(simulate);
-                return;
+                return 0;
             }
+
+            if (CliParser.HasCliArgs(args))
+                return RunCli(args);
+
+            using var instanceMutex = new Mutex(initiallyOwned: true, TrayMutexName, out var createdNew);
+            if (!createdNew)
+                return 0;
 
             using var context = new TrayAppContext();
             Application.Run(context);
+            return 0;
         }
         catch (Exception ex)
         {
             TryWriteCrash(ex.ToString());
+            return 1;
         }
+    }
+
+    private static int RunCli(string[] args)
+    {
+        var parsed = CliParser.Parse(args);
+        if (parsed.ShowHelp)
+        {
+            ConsoleHelper.WriteOutput(CliParser.HelpText, null);
+            return 0;
+        }
+
+        if (parsed.Error is not null || parsed.Request is null)
+        {
+            ConsoleHelper.WriteOutput(null, parsed.Error ?? "Invalid arguments.");
+            return 2;
+        }
+
+        CliResponse response;
+        if (!IpcBridge.TrySend(parsed.Request, out response))
+        {
+            Loc.Initialize();
+            using var service = new MonitorService();
+            service.Refresh();
+            response = CliCommandHandler.Execute(service, parsed.Request);
+        }
+
+        ConsoleHelper.WriteOutput(response.Stdout, response.Stderr);
+        return response.ExitCode;
     }
 
     // Note: In some restricted environments %TEMP% is not writable by child processes, so logs are written to the app directory.
@@ -79,7 +117,7 @@ internal static class Program
 
         try
         {
-            using var context = new TrayAppContext();
+            using var context = new TrayAppContext(enableIpc: false);
             Loc.Initialize();
 
             if (simulateSoftOff)
